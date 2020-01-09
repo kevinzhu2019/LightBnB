@@ -129,28 +129,52 @@ exports.getAllReservations = getAllReservations;
  * @return {Promise<[{}]>}  A promise to the properties.
  */
 const getAllProperties = function(options, limit = 10) {
-  // const limitedProperties = {};
-  // for (let i = 1; i <= limit; i++) {
-  //   limitedProperties[i] = properties[i];
-  // }
-  // return Promise.resolve(limitedProperties);
-  const queryString = `SELECT * FROM properties LIMIT $1;`
-  const value = [];
-  value.push(limit);
-  return pool.query(queryString, value)
-  .then(result => {
-    return result.rows
-  });
+  const queryParams = [];
+  let queryString = `
+  SELECT p.*, avg(pr.rating) as average_rating
+  FROM properties p
+  INNER JOIN property_reviews pr ON p.id = pr.property_id
+  WHERE true `;
+
+  if (options.city) {
+    queryParams.push(`%${options.city}%`);
+    queryString = queryString + `AND p.city LIKE $${queryParams.length} `;
+  } 
+
+  if (options.owner_id) {
+    queryParams.push(options.owner_id);
+    queryString = queryString + `AND p.owner_id = $${queryParams.length} `;
+  }
+
+  if (options.minimum_price_per_night) {
+    queryParams.push(Number(options.minimum_price_per_night));
+    queryString = queryString + `AND p.cost_per_night >= $${queryParams.length} `;
+  }
+
+  if (options.maximum_price_per_night) {
+    queryParams.push(Number(options.maximum_price_per_night));
+    queryString = queryString + `AND p.cost_per_night <= $${queryParams.length} `;
+  }
+
+  queryString += `GROUP BY p.id `;
+
+  if (options.minimum_rating) {
+    queryParams.push(Number(options.minimum_rating));
+    queryString = queryString + `HAVING avg(pr.rating) >= $${queryParams.length} ORDER BY p.cost_per_night `;
+  }
+
+  queryParams.push(limit);
+  queryString = queryString + `
+  LIMIT $${queryParams.length}
+  `;
+
+  console.log(queryString, queryParams);
+
+  return pool.query(queryString, queryParams)
+  .then((result) => {
+    return result.rows;
+  })
 }
-// const getAllProperties = function(options, limit = 10) {
-//   pool.query(`
-//   SELECT * FROM properties
-//   LIMIT $1
-//   `, [limit])
-//   .then(res => {
-//     console.log(res.rows)
-//   });
-// }
 exports.getAllProperties = getAllProperties;
 
 
